@@ -1,0 +1,149 @@
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+path {
+    fill: grey;
+}
+
+.feature.active {
+  fill: orange;
+}
+
+#legend {
+    padding: 1.5em 0 0 1.5em;
+}
+
+li.key {
+    border-top-width: 15px;
+    border-top-style: solid;
+    font-size: .75em;
+    width: 10%;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+div.tooltip {
+  color: #222; 
+  font-size: .80em;
+  background: #fff; 
+  padding: .5em; 
+  text-shadow: #f5f5f5 0 1px 0;
+  border-radius: 3px; 
+  box-shadow: 0px 0px 2px 2px #a6a6a6; 
+  opacity: 0.9; 
+  position: absolute;
+}
+
+</style>
+<body>
+
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://d3js.org/queue.v1.min.js"></script>
+<script src="http://d3js.org/topojson.v1.min.js"></script>
+<script src="http://d3js.org/colorbrewer.v1.min.js"></script>
+
+<script>
+
+var margin = {top: 10, left: 10, bottom: 10, right: 10}
+   width = parseInt(d3.select("body").style('width'))
+   width = width - margin.left - margin.right
+   mapRatio = .5
+   height = width * mapRatio;
+
+var width = 960,
+    height = 1160;
+    active = d3.select(null);
+    
+var color = d3.scale.threshold()
+    .domain([25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000])
+    .range(colorbrewer.YlGnBu[8]);
+    
+var div = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("opacity", 0);
+    
+var projection = d3.geo.albers()
+    .scale(1800)
+    .translate([width / 2, height / 2])
+    .center([56, 35])
+    .rotate([-10, -5, 5]);
+
+var path = d3.geo.path()
+    .projection(projection);
+    
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+queue()
+  .defer(d3.json, "csd.json")
+  .defer(d3.csv, "Income.csv")
+  .await(ready);
+
+function click() {
+            d3.select(this.parentNode.appendChild(this)).transition().duration(10).style("fill", "yellow")
+          };
+
+var g = svg.append("g")
+
+function ready(error, csd, Income) {
+  var rateById = {};
+
+  Income.forEach(function(d) { rateById[d.id] = +d.value; });
+
+      g.selectAll("path")
+        .data(topojson.feature(csd, csd.objects.output4).features)
+      .enter().append("path")
+        .attr("d", path)
+        .style({'stroke-opacity':1.0,'stroke':'grey', 'stroke-width':0.1})
+        .style("fill", function(d) { return color(rateById[d.id]); })
+        .on("mouseover", function(d,i) {
+         d3.select(this.parentNode.appendChild(this)).transition().duration(10).style("fill", "#FFAD5C").style({'stroke':'white', 'stroke-width':0.3,'stroke-opacity':1.0});
+         div.transition().duration(10)
+         .style("opacity", 1)
+         div.html(d.id + "<br/>" + "Median Income: " + "$" + (1*rateById[d.id]).toLocaleString())
+         .style("left", (d3.event.pageX + 15) + "px")     
+         .style("top", (d3.event.pageY - 40) + "px");  
+         })
+         .on("mouseout", function() {
+         d3.select(this)
+         .transition().duration(10)
+         .style("fill", function(d) { return color(rateById[d.id]); }).style({"stroke":"grey", "stroke-opacity":1.0, "stroke-width":0.1});
+         div.transition().duration(10)
+         .style("opacity", 0);
+         })
+         .on("click", click);
+};
+
+function click(d) {
+  if (active.node() === this) return reset();
+  active.classed("active", false);
+  active = d3.select(this).classed("active", true);
+
+  var bounds = path.bounds(d),
+      dx = bounds[1][0] - bounds[0][0],
+      dy = bounds[1][1] - bounds[0][1],
+      x = (bounds[0][0] + bounds[1][0]) / 2,
+      y = (bounds[0][1] + bounds[1][1]) / 2,
+      scale = .1 / Math.max(dx / width, dy / height),
+      translate = [width / 5 - scale * x, height / 6.5 - scale * y];
+
+  g.transition()
+      .duration(750)
+      .style("stroke-width", 1.5 / scale + "px")
+      .attr("transform", "translate(" + translate + ")scale(" + scale + ")");
+}
+
+function reset() {
+  active.classed("active", false);
+  active = d3.select(null);
+
+  g.transition()
+      .duration(750)
+      .style("stroke-width", "1.5px")
+      .attr("transform", "");
+};
+
+</script>
